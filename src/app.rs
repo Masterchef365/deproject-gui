@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
 use eframe::egui_glow;
-use egui::mutex::Mutex;
+use egui::{mutex::Mutex, DragValue, Slider};
 use egui_glow::glow;
 
-pub struct Custom3d {
+pub struct CalibratorGui {
     /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
-    rotating_triangle: Arc<Mutex<RotatingTriangle>>,
+    scene_3d: Arc<Mutex<RotatingTriangle>>,
     angle: f32,
 }
 
-impl Custom3d {
+impl CalibratorGui {
     pub fn new<'a>(cc: &'a eframe::CreationContext<'a>) -> Self {
         Self {
-            rotating_triangle: Arc::new(Mutex::new(RotatingTriangle::new(
+            scene_3d: Arc::new(Mutex::new(RotatingTriangle::new(
                 cc.gl.as_ref().expect("GL Enabled"),
             ))),
             angle: 0.0,
@@ -21,8 +21,12 @@ impl Custom3d {
     }
 }
 
-impl eframe::App for Custom3d {
+impl eframe::App for CalibratorGui {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::SidePanel::left("Left panel").show(ctx, |ui| {
+            ui.add(Slider::new(&mut self.angle, 0.0..=std::f32::consts::TAU))
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
@@ -46,12 +50,12 @@ impl eframe::App for Custom3d {
 
     fn on_exit(&mut self, gl: Option<&glow::Context>) {
         if let Some(gl) = gl {
-            self.rotating_triangle.lock().destroy(gl);
+            self.scene_3d.lock().destroy(gl);
         }
     }
 }
 
-impl Custom3d {
+impl CalibratorGui {
     fn custom_painting(&mut self, ui: &mut egui::Ui) {
         let (rect, response) =
             ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
@@ -60,7 +64,7 @@ impl Custom3d {
 
         // Clone locals so we can move them into the paint callback:
         let angle = self.angle;
-        let rotating_triangle = self.rotating_triangle.clone();
+        let rotating_triangle = self.scene_3d.clone();
 
         let cb = egui_glow::CallbackFn::new(move |_info, painter| {
             rotating_triangle.lock().paint(painter.gl(), angle);
@@ -186,4 +190,3 @@ impl RotatingTriangle {
         }
     }
 }
-
