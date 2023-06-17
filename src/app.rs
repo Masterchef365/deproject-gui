@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eframe::egui_glow;
-use egui::{mutex::Mutex, DragValue, Slider};
+use egui::{mutex::Mutex, DragValue, Slider, Color32, Stroke};
 use egui_glow::glow;
 use glam::Vec3;
 
@@ -24,16 +24,12 @@ impl CalibratorGui {
 
 impl eframe::App for CalibratorGui {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::SidePanel::left("Left panel").show(ctx, |ui| {
-            ui.add(Slider::new(&mut self.angle, 0.0..=std::f32::consts::TAU))
-        });
+        egui::SidePanel::left("Left panel").show(ctx, |ui| self.left_panel(ui));
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                self.custom_painting(ui);
+            egui::Frame::default().fill(Color32::BLACK).show(ui, |ui| {
+                self.paint_view3d(ui);
             });
-            ui.label("Drag to rotate!");
-            //ui.add(egui_demo_lib::egui_github_link_file!());
         });
     }
 
@@ -45,7 +41,14 @@ impl eframe::App for CalibratorGui {
 }
 
 impl CalibratorGui {
-    fn custom_painting(&mut self, ui: &mut egui::Ui) {
+    fn left_panel(&mut self, ui: &mut egui::Ui) {
+        ui.add(Slider::new(&mut self.angle, 0.0..=std::f32::consts::TAU));
+        if ui.button("Begin recording").clicked() {
+            todo!()
+        }
+    }
+
+    fn paint_view3d(&mut self, ui: &mut egui::Ui) {
         let available_size = ui.available_size();
         let (rect, response) = ui.allocate_exact_size(available_size, egui::Sense::drag());
 
