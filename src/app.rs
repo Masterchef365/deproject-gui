@@ -3,17 +3,18 @@ use std::sync::Arc;
 use eframe::egui_glow;
 use egui::{mutex::Mutex, DragValue, Slider};
 use egui_glow::glow;
+use glam::Vec3;
 
 pub struct CalibratorGui {
     /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
-    scene_3d: Arc<Mutex<RotatingTriangle>>,
+    scene_3d: Arc<Mutex<Scene3d>>,
     angle: f32,
 }
 
 impl CalibratorGui {
     pub fn new<'a>(cc: &'a eframe::CreationContext<'a>) -> Self {
         Self {
-            scene_3d: Arc::new(Mutex::new(RotatingTriangle::new(
+            scene_3d: Arc::new(Mutex::new(Scene3d::new(
                 cc.gl.as_ref().expect("GL Enabled"),
             ))),
             angle: 0.0,
@@ -28,23 +29,11 @@ impl eframe::App for CalibratorGui {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::both()
-                .auto_shrink([false; 2])
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        ui.label("The triangle is being painted using ");
-                        ui.hyperlink_to("glow", "https://github.com/grovesNL/glow");
-                        ui.label(" (OpenGL).");
-                    });
-                    ui.label("It's not a very impressive demo, but it shows you can embed 3D inside of egui.");
-
-                    egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                        self.custom_painting(ui);
-                    });
-                    ui.label("Drag to rotate!");
-                    //ui.add(egui_demo_lib::egui_github_link_file!());
-                });
+            egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                self.custom_painting(ui);
+            });
+            ui.label("Drag to rotate!");
+            //ui.add(egui_demo_lib::egui_github_link_file!());
         });
     }
 
@@ -57,8 +46,8 @@ impl eframe::App for CalibratorGui {
 
 impl CalibratorGui {
     fn custom_painting(&mut self, ui: &mut egui::Ui) {
-        let (rect, response) =
-            ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
+        let available_size = ui.available_size();
+        let (rect, response) = ui.allocate_exact_size(available_size, egui::Sense::drag());
 
         self.angle += response.drag_delta().x * 0.01;
 
@@ -78,13 +67,13 @@ impl CalibratorGui {
     }
 }
 
-struct RotatingTriangle {
+struct Scene3d {
     program: glow::Program,
     vertex_array: glow::VertexArray,
 }
 
 #[allow(unsafe_code)] // we need unsafe code to use glow
-impl RotatingTriangle {
+impl Scene3d {
     fn new(gl: &glow::Context) -> Self {
         use glow::HasContext as _;
 
