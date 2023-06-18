@@ -1,28 +1,39 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use eframe::egui_glow;
-use egui::{mutex::Mutex, DragValue, Slider, Color32, Stroke};
+use egui::{mutex::Mutex, Color32, DragValue, Slider, Stroke};
 use egui_glow::glow;
 use glam::Vec3;
 
+#[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct CalibratorGui {
-    /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
-    scene_3d: Arc<Mutex<Scene3d>>,
-    angle: f32,
+    #[serde(skip)]
+    scene_3d: Option<Arc<Mutex<Scene3d>>>,
+    calb_root_path: PathBuf,
 }
 
 impl CalibratorGui {
     pub fn new<'a>(cc: &'a eframe::CreationContext<'a>) -> Self {
-        Self {
-            scene_3d: Arc::new(Mutex::new(Scene3d::new(
-                cc.gl.as_ref().expect("GL Enabled"),
-            ))),
-            angle: 0.0,
-        }
+        // Load from eframe's storage
+        let mut instance: Self = cc
+            .storage
+            .and_then(|s| eframe::get_value(s, eframe::APP_KEY))
+            .unwrap_or_default();
+
+        instance.scene_3d = Some(Arc::new(Mutex::new(Scene3d::new(
+            cc.gl.as_ref().expect("GL Enabled"),
+        ))));
+
+        instance
     }
 }
 
 impl eframe::App for CalibratorGui {
+    /// Called by the frame work to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::SidePanel::left("Left panel").show(ctx, |ui| self.left_panel(ui));
 
@@ -35,16 +46,29 @@ impl eframe::App for CalibratorGui {
 
     fn on_exit(&mut self, gl: Option<&glow::Context>) {
         if let Some(gl) = gl {
-            self.scene_3d.lock().destroy(gl);
+            self.scene_3d.as_ref().unwrap().lock().destroy(gl);
         }
     }
 }
 
 impl CalibratorGui {
     fn left_panel(&mut self, ui: &mut egui::Ui) {
-        ui.add(Slider::new(&mut self.angle, 0.0..=std::f32::consts::TAU));
         if ui.button("Begin recording").clicked() {
             todo!()
+        }
+
+        let path_text = self
+            .calb_root_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or(self.calb_root_path.display().to_string());
+        let path_text = format!("Path: {path_text}");
+
+        if ui.button(path_text).clicked() {
+            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                self.calb_root_path = folder;
+            }
         }
     }
 
@@ -52,14 +76,13 @@ impl CalibratorGui {
         let available_size = ui.available_size();
         let (rect, response) = ui.allocate_exact_size(available_size, egui::Sense::drag());
 
-        self.angle += response.drag_delta().x * 0.01;
-
         // Clone locals so we can move them into the paint callback:
-        let angle = self.angle;
-        let rotating_triangle = self.scene_3d.clone();
+        let rotating_triangle = self.scene_3d.clone().unwrap();
 
         let cb = egui_glow::CallbackFn::new(move |_info, painter| {
-            rotating_triangle.lock().paint(painter.gl(), angle);
+            rotating_triangle
+                .lock()
+                .paint(painter.gl(), 0.);
         });
 
         let callback = egui::PaintCallback {
