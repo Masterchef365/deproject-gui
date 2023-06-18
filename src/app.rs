@@ -53,8 +53,20 @@ impl eframe::App for CalibratorGui {
 
 impl CalibratorGui {
     fn left_panel(&mut self, ui: &mut egui::Ui) {
+        let projects_dir = self
+            .calb_root_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default();
+
         if ui.button("Begin recording").clicked() {
-            todo!()
+            if let Some(new_folder) = rfd::FileDialog::new()
+                .set_directory(&projects_dir)
+                .save_file()
+            {
+                std::fs::create_dir(&new_folder).unwrap();
+                self.calb_root_path = new_folder.clone();
+            }
         }
 
         let path_text = self
@@ -66,7 +78,10 @@ impl CalibratorGui {
         let path_text = format!("Path: {path_text}");
 
         if ui.button(path_text).clicked() {
-            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+            if let Some(folder) = rfd::FileDialog::new()
+                .set_directory(&projects_dir)
+                .pick_folder()
+            {
                 self.calb_root_path = folder;
             }
         }
@@ -80,9 +95,7 @@ impl CalibratorGui {
         let rotating_triangle = self.scene_3d.clone().unwrap();
 
         let cb = egui_glow::CallbackFn::new(move |_info, painter| {
-            rotating_triangle
-                .lock()
-                .paint(painter.gl(), 0.);
+            rotating_triangle.lock().paint(painter.gl(), 0.);
         });
 
         let callback = egui::PaintCallback {
