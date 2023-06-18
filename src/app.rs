@@ -5,7 +5,8 @@ use egui::{mutex::Mutex, Color32, DragValue, Slider, Stroke};
 use egui_glow::glow;
 use glam::Vec3;
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct CalibratorGui {
     #[serde(skip)]
     scene_3d: Option<Arc<Mutex<Scene3d>>>,
@@ -53,13 +54,15 @@ impl eframe::App for CalibratorGui {
 
 impl CalibratorGui {
     fn left_panel(&mut self, ui: &mut egui::Ui) {
+        // Recording controls
+        ui.strong("Recording");
         let projects_dir = self
             .calb_root_path
             .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_default();
 
-        if ui.button("Begin recording").clicked() {
+        if ui.button("Begin new recording").clicked() {
             if let Some(new_folder) = rfd::FileDialog::new()
                 .set_directory(&projects_dir)
                 .save_file()
@@ -69,14 +72,17 @@ impl CalibratorGui {
             }
         }
 
+        ui.separator();
+
+        // Calibration controls
+        ui.strong("Calibration");
         let path_text = self
             .calb_root_path
             .file_stem()
             .and_then(|s| s.to_str())
             .map(|s| s.to_string())
             .unwrap_or(self.calb_root_path.display().to_string());
-        let path_text = format!("Path: {path_text}");
-
+        let path_text = format!("Load from: {path_text}");
         if ui.button(path_text).clicked() {
             if let Some(folder) = rfd::FileDialog::new()
                 .set_directory(&projects_dir)
@@ -85,6 +91,9 @@ impl CalibratorGui {
                 self.calb_root_path = folder;
             }
         }
+        ui.label(self.calb_root_path.display().to_string());
+
+        ui.separator();
     }
 
     fn paint_view3d(&mut self, ui: &mut egui::Ui) {
@@ -216,5 +225,11 @@ impl Scene3d {
             gl.bind_vertex_array(Some(self.vertex_array));
             gl.draw_arrays(glow::TRIANGLES, 0, 3);
         }
+    }
+}
+
+impl Default for CalibratorGui {
+    fn default() -> Self {
+        Self { scene_3d: None, calb_root_path: "".into() }
     }
 }
